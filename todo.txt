@@ -1,0 +1,2 @@
+https://developer.github.com/v3/repos/releases/
+https://developer.github.com/v3/git/tags/
