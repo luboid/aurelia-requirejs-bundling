@@ -157,4 +157,38 @@ gulp.task('build-min', function() {	build_min('.min.js'); });
 gulp.task('build-latest', function () { build('-latest.js', './unzip-master/'); } );
 gulp.task('build-latest-min', function() {	build_min('-latest.min.js', './unzip-master/'); });
 
+gulp.task('download', function() {
+	return require('./download')({
+		zips: './zips',
+		zipsMaster: './zips-master',
+		unZip: './unzip',
+		unZipMaster: './unzip-master',
+		repos: [
+			"binding",
+			"bootstrapper",
+			"dependency-injection",
+			"event-aggregator",
+			"framework",
+			"history",
+			"history-browser",
+			"html-template-element",
+			"http-client",
+			"loader",
+			"loader-default",
+			"logging",
+			"logging-console",
+			"metadata",
+			"path",
+			"route-recognizer",
+			"router",
+			"task-queue",
+			"templating",
+			"templating-binding",
+			"templating-resources",
+			"templating-router",
+			"validation"
+		]
+	});
+});
+
 gulp.task('default', ['build', 'build-min', 'build-latest', 'build-latest-min']);
