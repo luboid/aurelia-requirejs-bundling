@@ -128,11 +128,8 @@ var async = require("async"),
 			callback(null, versionInfo);
 		  }
 		  else {
-			  callback(error || ('Request for [' +url+ '] ended with status code: '+response.statusCode+'.'));
+			callback(error || ('Request for [' +url+ '] ended with status code: '+response.statusCode+'.'));
 		  }
-		})
-		.on('error', function(e) {
-			callback(e, null);
 		});
 	}
 	
