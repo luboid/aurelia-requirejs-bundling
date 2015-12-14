@@ -81,7 +81,7 @@ var async = require("async"),
 			console.info('ok');
 		});
 	}
-	
+
 	function extract_version(repo, body) {
 		var matches, 
 			versions = [], 
@@ -100,8 +100,10 @@ var async = require("async"),
 				return parseInt(item[0],10)*1000000 +
 					parseInt(item[1],10)*1000 +
 					parseInt(item[2],10);
-			}).sort();
-			
+			}).sort(function (a,b) {
+				return a - b;
+			});
+
 			ver = versions[versions.length -1]
 			mod = ver % 1000000;
 			i0 = (ver - mod) / 1000000;

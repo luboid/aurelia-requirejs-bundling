@@ -1,1 +1,7 @@
 node_modules/
+unzip/
+unzip-master/
+zips/
+zips-master/
+bundling/typings/
+bundling/typings-latest/
