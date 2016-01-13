@@ -1,192 +1,157 @@
 ﻿'use strict';
-var gulp = require('gulp'),
-	extend = require('extend'),
-	flatten = require('gulp-flatten'),
-	dtsRef = require('./create-dts-ref'),
-	path = require('path'),
-	fs = require('fs');
+var dist = './dist',
+    gulp = require('gulp'),
+    extend = require('extend'),
+    concat = require('gulp-concat'),
+    path = require('path'),
+    fs = require('fs');
 
-var include = [
-		  "aurelia-pal",
-		  "aurelia-pal-browser",
-		  'aurelia-path',
-		  'aurelia-loader',
-		  'aurelia-loader-default',
-		  'aurelia-task-queue',
-		  'aurelia-logging',
-		  'aurelia-logging-console',
-		  'aurelia-history',
-		  'aurelia-history-browser',
-		  'aurelia-event-aggregator',
-		  'aurelia-framework',
-		  'aurelia-metadata',
-		  'aurelia-binding',
-		  'aurelia-templating',
-		  'aurelia-dependency-injection',
-		  'aurelia-router',
-		  'aurelia-templating-binding',
-		  'aurelia-templating-resources',
-		  'aurelia-templating-router',
-		  'aurelia-route-recognizer',
-		  'aurelia-http-client',
-		  'aurelia-bootstrapper',
-		  'aurelia-html-template-element',
-		  'aurelia-validation',
-		  'aurelia-i18n'
-		  //,'aurelia-templating-validation'
-	  ];
-var packages = [{
-		name: 'aurelia-i18n',
-		location: 'i18n/dist/amd',
-		main : 'aurelia-i18n.js'
-	},{
-		name: 'aurelia-templating-resources',
-		location: 'templating-resources/dist/amd',
-		main : 'aurelia-templating-resources'
-	},
-	{
-		name: 'aurelia-templating-router',
-		location: 'templating-router/dist/amd',
-		main : 'aurelia-templating-router'
-	},
-	{
-		name: 'aurelia-validation',
-		location: 'validation/dist/amd',
-		main : 'index'
-	}];
+var repos = [
+    { name: "binding" },
+    //{ name: "validation", package: "index" },
+    { name: "bootstrapper" },
+    { name: "dependency-injection" },
+    { name: "event-aggregator" },
+    { name: "framework" },
+    { name: "history" },
+    { name: "history-browser" },
+    { name: "html-template-element" },
+    { name: "http-client" },
+    { name: "loader" },
+    { name: "loader-default" },
+    { name: "logging" },
+    { name: "logging-console" },
+    { name: "metadata" },
+    { name: "path" },
+    { name: "route-recognizer" },
+    { name: "router" },
+    { name: "task-queue" },
+    { name: "templating" },
+    { name: "templating-binding" },
+    { name: "templating-resources", package: true },
+    { name: "templating-router", package: true },
+    { name: "pal" },
+    { name: "pal-browser" },
+    { name: "i18n", package: true }
+   	//{name:// "templating-validation"},
+];
 
-function isPackage(name) {
-	for(var i in packages) {
-		if (packages[i].name === name) {
-			return true;
-		}
-	}
-	return false;
-}
+var buildTasks = [];
+(function (buildTasks) {
+    var versions;
+    try {
+        versions = require(dist + '/versions.json');
+    }
+    catch (e) {
+        return;
+    }
+    
+    var config = (function buildConfig() {
+        var modules = repos.map(function (repo) {
+            return "aurelia-" + repo.name;
+        });
 
-var paths = {
-	'aurelia-html-template-element': 'html-template-element/dist/HTMLTemplateElement',
-	'core-js': 'empty:',
-	'i18next': 'empty:'
-};
+        var packages = repos.filter(function (repo) {
+            return !!repo.package;
+        }).map(function (repo) {
+            return {
+                name: "aurelia-" + repo.name,
+                location: "aurelia-" + repo.name + "/dist/amd",
+                main: typeof (repo.package) == 'boolean' ? "aurelia-" + repo.name : repo.package
+            };
+        });
 
-for(var i in include) {
-	var moduleName = include[i];
-	if (!paths[moduleName] && !isPackage(moduleName)) {
-		paths[moduleName] = moduleName.substr(moduleName.indexOf('-')+1) + '/dist/amd/' + moduleName;
-	}
-}
+        var paths = {
+            'aurelia-html-template-element': 'aurelia-html-template-element/dist/HTMLTemplateElement',
+            'core-js': 'empty:',
+            'i18next': 'empty:'
+        };
 
-var config = {
-	  baseUrl: './unzip/',
-	  out: './aurelia-bundle',
-	  paths: paths,
-	  include: include,
-	  packages: packages,
+        repos.forEach(function (repo) {
+            var name = 'aurelia-' + repo.name;
+            if (!paths[name] && !repo.package) {
+                paths[name] = name + '/dist/amd/' + name;
+            }
+        });
 
-		wrap: {
-			startFile: ["versions.txt"],
-			endFile: []
-		}
-	};
+        return {
+            baseUrl: './unzip/',
+            out: 'aurelia-bundle',
+            paths: paths,
+            include: modules,
+            packages: packages,
 
-function fixConfig(ext, baseUrl) {
-	if (ext===undefined) ext = '.js';
-	if (baseUrl===undefined) baseUrl = './unzip/';
+            wrap: {
+                startFile: ["versions.txt"],
+                endFile: []
+            }
+        };
+    })();    
 
-	var cfg = extend(true, {}, config);
+    var createConfig = function createConfig(version, ext) {
+        var cfg = extend(true, {}, config);
 
-	cfg.baseUrl = baseUrl;
-	cfg.out = cfg.out + ext;
-	cfg.wrap.startFile = baseUrl + config.wrap.startFile;
+        cfg.baseUrl = dist + '/' + version + '/';
+        cfg.out = cfg.out + (version === 'current' ? '' : '.' + version) + ext;
+        cfg.wrap.startFile = cfg.baseUrl + config.wrap.startFile;
 
-	return cfg;
-}
+        return cfg;
+    };
 
-function build(ext, baseUrl) {
-	var rjs = require('gulp-requirejs'),
-		cfg = fixConfig(ext, baseUrl);
+    var build = function build(version) {
+        var rjs = require('gulp-requirejs'),
+            cfg = createConfig(version, '.js');
 
-	rjs(cfg)
-		.pipe(gulp.dest('./')); // pipe it to the output DIR
-}
+        rjs(cfg)
+            .pipe(gulp.dest(dist)); // pipe it to the output DIR
+    };
 
-function build_min(ext, baseUrl) {
-	var rjs = require('gulp-requirejs'),
-		uglify = require('gulp-uglify'),
-		sourcemaps = require('gulp-sourcemaps'),
-		cfg = fixConfig(ext, baseUrl);
+    var build_min = function build_min(version) {
+        var rjs = require('gulp-requirejs'),
+            uglify = require('gulp-uglify'),
+            sourcemaps = require('gulp-sourcemaps'),
+            cfg = createConfig(version, '.min.js');;
 
-	rjs(cfg)
-		.pipe(sourcemaps.init())
-		.pipe(uglify())
-		.pipe(sourcemaps.write('./', {includeContent:false}))
-		.pipe(gulp.dest('./')); // pipe it to the output DIR
-}
-function copydts(folder, dest) {
-	dest = dest || './typings';
+        rjs(cfg)
+            .pipe(sourcemaps.init())
+            .pipe(uglify())
+            .pipe(sourcemaps.write('./', { includeContent: false }))
+            .pipe(gulp.dest(dist)); // pipe it to the output DIR
+    };
 
-	return gulp.src(['./' + folder + '/**/dist/amd/*.d.ts'])
-		.pipe(flatten())
-		.pipe(gulp.dest(dest));
-}
-function createReferencesFile(folder) {
-	folder = path.join(folder + '/');
-	var refFileName = '_references.d.ts';
-	gulp.src([folder + '/*.d.ts', '!' + path.join(folder, refFileName)])
-		.pipe(dtsRef(refFileName))
-		.pipe(gulp.dest(folder));
-}
+    var build_dts = function build_dts(version) {
+        gulp.src([dist + '/' + version + '/versions.txt', dist + '/' + version + '/**/dist/amd/*.d.ts'])
+            .pipe(concat('aurelia' + (version === 'current' ? '' : '.' + version) + '.d.ts'))
+            .pipe(gulp.dest(dist));
+    };
 
-gulp.task('build', function () { build(); } );
-gulp.task('build-min', function() {	build_min('.min.js'); });
-gulp.task('build-latest', function () { build('-latest.js', './unzip-master/'); } );
-gulp.task('build-latest-min', function() {	build_min('-latest.min.js', './unzip-master/'); });
-gulp.task('copy-dts', function () { return copydts('./unzip/'); })
-gulp.task('copy-dts-latest', function () { return copydts('./unzip-master/', './typings-latest'); })
+    for (var i in versions) {
+        if (i == 'repos') {
+            continue;
+        }
+        if (versions[i]) {
+            buildTasks.push('build-' + i);
+            gulp.task('build-' + i, build.bind(null, i));
+            buildTasks.push('build-' + i + '-min');
+            gulp.task('build-' + i + '-min', build_min.bind(null, i));
+            buildTasks.push('build-' + i + '-dts');
+            gulp.task('build-' + i + '-dts', build_dts.bind(null, i));
+        }
+    }
+})(buildTasks);
 
-gulp.task('create-ref-dts', ['copy-dts'], function () {
-	createReferencesFile('./typings');
+gulp.task('default', buildTasks, function () {
+    if (buildTasks.length === 0) {
+        throw new Error('there is no framework versions to build');
+    }
 });
-gulp.task('create-ref-dts-latest', ['copy-dts-latest'], function () {
-	createReferencesFile('./typings-latest');
+
+gulp.task('download', [], function () {
+    var download = require('./download');
+    var downloadCfg = {
+        directory: dist,
+        repos: repos.map(function (repo) { return repo.name; }),
+        authToken: '<<github.com user auth token>>' 
+    };
+    return download(downloadCfg);
 });
-gulp.task('download', function() {
-	return require('./download')({
-		zips: './zips',
-		zipsMaster: './zips-master',
-		unZip: './unzip',
-		unZipMaster: './unzip-master',
-		repos: [
-			"binding",
-			"validation",
-			// "templating-validation",
-			"bootstrapper",
-			"dependency-injection",
-			"event-aggregator",
-			"framework",
-			"history",
-			"history-browser",
-			"html-template-element",
-			"http-client",
-			"loader",
-			"loader-default",
-			"logging",
-			"logging-console",
-			"metadata",
-			"path",
-			"route-recognizer",
-			"router",
-			"task-queue",
-			"templating",
-			"templating-binding",
-			"templating-resources",
-			"templating-router",
-			"pal",
-			"pal-browser",
-			'i18n'
-		]
-	});
-});
-gulp.task('dts', ['create-ref-dts', 'create-ref-dts-latest']);
-gulp.task('default', ['build', 'build-min', 'build-latest', 'build-latest-min']);
